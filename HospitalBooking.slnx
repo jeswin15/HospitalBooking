@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="HospitalBooking.API/HospitalBooking.API.csproj" />
+  <Project Path="HospitalBooking.Application/HospitalBooking.Application.csproj" />
+  <Project Path="HospitalBooking.Domain/HospitalBooking.Domain.csproj" />
+  <Project Path="HospitalBooking.Infrastructure/HospitalBooking.Infrastructure.csproj" />
+</Solution>

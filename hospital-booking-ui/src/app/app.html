@@ -1,0 +1,105 @@
+<div class="flex flex-col min-h-screen bg-[#F8FAFC]" *ngIf="authService.isLoggedIn()">
+  <!-- TOP NAVIGATION HUB -->
+  <header class="sticky top-0 z-[50] bg-white/90 backdrop-blur-xl border-b border-slate-100 px-8 py-4 flex items-center justify-between shadow-sm">
+    <!-- LEFT: Logo & Brand -->
+    <div class="flex items-center gap-8">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <span class="text-xl font-black text-slate-800 tracking-tighter">Appointmed<span class="text-blue-600 text-3xl leading-none">.</span></span>
+      </div>
+
+      <!-- MIDDLE: Dynamic Navigation Links -->
+      <nav class="hidden md:flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+        <!-- Admin Navigation -->
+        <ng-container *ngIf="authService.isAdmin()">
+          <a routerLink="/admin/dashboard" routerLinkActive="active-top-link" class="top-nav-item">Analytics</a>
+          <a routerLink="/admin/doctors" routerLinkActive="active-top-link" class="top-nav-item">Doctors</a>
+          <a routerLink="/admin/patients" routerLinkActive="active-top-link" class="top-nav-item">Patients</a>
+          <a routerLink="/admin/history" routerLinkActive="active-top-link" class="top-nav-item">History</a>
+          <a routerLink="/admin/schedule" routerLinkActive="active-top-link" class="top-nav-item">Sessions</a>
+          <a routerLink="/admin/settings" routerLinkActive="active-top-link" class="top-nav-item">Settings</a>
+        </ng-container>
+
+        <!-- Doctor Navigation -->
+        <ng-container *ngIf="authService.isDoctor()">
+          <a routerLink="/doctor/dashboard" routerLinkActive="active-top-link" class="top-nav-item">Live Queue</a>
+          <a routerLink="/doctor/requests" routerLinkActive="active-top-link" class="top-nav-item">Requests</a>
+          <a routerLink="/doctor/schedule" routerLinkActive="active-top-link" class="top-nav-item">Calendar</a>
+          <a routerLink="/doctor/settings" routerLinkActive="active-top-link" class="top-nav-item">Clinical Settings</a>
+        </ng-container>
+
+        <!-- Patient Navigation -->
+        <ng-container *ngIf="authService.isPatient()">
+          <a routerLink="/patient/home" routerLinkActive="active-top-link" class="top-nav-item">Overview</a>
+          <a routerLink="/patient/doctors" routerLinkActive="active-top-link" class="top-nav-item">Find all Doctors</a>
+          <a routerLink="/patient/appointments" routerLinkActive="active-top-link" class="top-nav-item">My Bookings</a>
+          <a routerLink="/patient/book" routerLinkActive="active-top-link" class="top-nav-item ml-4 !bg-blue-600 !text-white !border-none shadow-md shadow-blue-200 hover:!bg-blue-700">New Appointment</a>
+        </ng-container>
+      </nav>
+    </div>
+
+    <!-- RIGHT: User Actions & Profile -->
+    <div class="flex items-center gap-4">
+      <div class="search-box relative hidden lg:block">
+         <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+         <input type="text" placeholder="Search..." class="pl-11 pr-5 py-2.5 bg-slate-50 border border-slate-100 rounded-[14px] text-xs font-bold w-48 outline-none focus:border-blue-500 transition-all">
+      </div>
+
+      <button (click)="goBack()" class="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" title="Go Back">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+
+      <div class="h-8 w-px bg-slate-100 mx-2"></div>
+
+      <div class="flex items-center gap-4 pl-2">
+        <a routerLink="/profile" class="flex items-center gap-3 group">
+          <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md group-hover:shadow-blue-200 transition-all">
+            {{ getInitials() }}
+          </div>
+          <div class="hidden sm:block">
+            <h3 class="text-xs font-black text-slate-800 leading-none mb-1">{{ authService.currentUser()?.name }}</h3>
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{{ authService.currentUser()?.role }}</p>
+          </div>
+        </a>
+        <button (click)="logout()" class="p-2.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" title="Sign Out">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- IMPERSONATION BANNER -->
+  <div *ngIf="authService.isImpersonating()" class="bg-indigo-600 text-white px-8 py-2.5 flex items-center justify-between shadow-lg sticky top-[73px] z-[40] slide-in">
+     <div class="flex items-center gap-4">
+        <div class="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <p class="text-[10px] font-black uppercase tracking-widest">Administrative Mode: <span class="text-indigo-200">Acting as {{ authService.currentUser()?.name }}</span></p>
+     </div>
+     <button (click)="authService.stopImpersonation()" class="px-5 py-1.5 bg-white text-indigo-600 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-indigo-50 transition-all">
+        Exit Mode
+     </button>
+  </div>
+
+  <!-- MAIN AREA -->
+  <main class="flex-1 flex flex-col min-w-0">
+    <!-- Sub-Header showing the Title of the current page -->
+    <div class="px-12 py-8 flex items-end justify-between">
+      <div class="flex flex-col">
+        <h2 class="text-2xl font-black text-slate-800 tracking-tight leading-none mb-1">{{ getPageTitle() }}</h2>
+        <p class="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">{{ todayDate }}</p>
+      </div>
+    </div>
+
+    <div class="px-12 pb-12 flex-1 relative">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+</div>
+
+<!-- Public Layout (Auth Only) -->
+<div *ngIf="!authService.isLoggedIn()" class="min-h-screen">
+  <router-outlet></router-outlet>
+</div>
