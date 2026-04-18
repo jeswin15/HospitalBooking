@@ -66,7 +66,7 @@ import { AuthService } from '../../core/services/auth.service';
                 </td>
                 <td class="px-8 py-8 text-center">
                   @if (appt.status === 'Completed') {
-                    <button (click)="downloadPrescription(appt.id)" class="px-6 py-3 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200">
+                    <button (click)="viewPrescription(appt)" class="px-6 py-3 bg-slate-900 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200">
                        Prescription
                     </button>
                   } @else if (appt.status === 'InRoom') {
@@ -92,6 +92,89 @@ import { AuthService } from '../../core/services/auth.service';
         </table>
       </div>
     </div>
+    
+    <!-- Prescription View Modal -->
+    @if (showPrescriptionModal()) {
+      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <!-- Modal Header -->
+          <div class="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <h3 class="text-xs font-black text-blue-600 uppercase tracking-[0.3em] mb-2">Doctor's Suggestion</h3>
+              <p class="text-2xl font-black text-slate-900 tracking-tight">Dr. {{ selectedAppointment()?.doctorName }}</p>
+            </div>
+            <button (click)="closePrescriptionModal()" class="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-colors shadow-sm">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+
+          <!-- Modal Body -->
+          <div class="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div class="space-y-4">
+                <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Diagnosis</label>
+                <div class="p-6 bg-blue-50/30 border border-blue-50 rounded-2xl text-slate-800 font-medium leading-relaxed">
+                   {{ currentPrescription()?.diagnosis || 'No diagnosis recorded.' }}
+                </div>
+              </div>
+              <div class="space-y-4">
+                <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Tests Advised</label>
+                <div class="p-6 bg-slate-50 border border-slate-100 rounded-2xl text-slate-800 font-medium leading-relaxed italic">
+                   {{ currentPrescription()?.testsAdvised || 'No special tests advised.' }}
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-6">
+              <label class="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Medications (Rx)</label>
+              <div class="overflow-hidden rounded-2xl border border-slate-100 shadow-sm">
+                <table class="w-full text-left">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Medicine</th>
+                      <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Dosage</th>
+                      <th class="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (med of currentPrescription()?.medicines; track med.name) {
+                      <tr class="border-t border-slate-50">
+                        <td class="px-6 py-4 font-bold text-slate-800">{{ med.name }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-slate-600">{{ med.dosage }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-slate-600">{{ med.duration }}</td>
+                      </tr>
+                    } @empty {
+                      <tr><td colspan="3" class="px-6 py-8 text-center text-slate-300 font-bold">No medicines prescribed.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            @if (currentPrescription()?.followUpDate) {
+              <div class="p-6 bg-emerald-50 rounded-2xl flex items-center gap-4 border border-emerald-100/50">
+                <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+                   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+                <div>
+                  <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Suggested Follow-up</p>
+                  <p class="text-lg font-black text-emerald-900 tracking-tight">{{ currentPrescription()?.followUpDate | date:'fullDate' }}</p>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="p-8 border-t border-slate-50 bg-slate-50/30 flex gap-4">
+            <button (click)="closePrescriptionModal()" class="flex-1 py-4 border border-slate-200 rounded-2xl font-black text-xs uppercase text-slate-400 tracking-widest hover:bg-white transition-all">Close</button>
+            <button (click)="downloadPrescription(selectedAppointment()?.id)" class="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+               Download PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     .history-container { @apply pt-2; }
@@ -107,6 +190,9 @@ export class HistoryComponent implements OnInit {
   public authService = inject(AuthService);
   
   appointments = signal<any[]>([]);
+  showPrescriptionModal = signal(false);
+  selectedAppointment = signal<any>(null);
+  currentPrescription = signal<any>(null);
 
   ngOnInit() {
     this.loadAppointments();
@@ -116,6 +202,23 @@ export class HistoryComponent implements OnInit {
     this.http.get<any[]>(`${environment.apiUrl}/patient/appointments`).subscribe(res => {
       this.appointments.set(res);
     });
+  }
+
+  viewPrescription(appt: any) {
+    this.selectedAppointment.set(appt);
+    this.http.get(`${environment.apiUrl}/patient/appointments/${appt.id}/prescription/data`).subscribe({
+      next: (data) => {
+        this.currentPrescription.set(data);
+        this.showPrescriptionModal.set(true);
+      },
+      error: () => alert('Prescription details are not yet available for this appointment.')
+    });
+  }
+
+  closePrescriptionModal() {
+    this.showPrescriptionModal.set(false);
+    this.currentPrescription.set(null);
+    this.selectedAppointment.set(null);
   }
 
   getStatusClass(status: string) {
@@ -130,6 +233,7 @@ export class HistoryComponent implements OnInit {
   }
 
   downloadPrescription(appointmentId: number) {
+    if (!appointmentId) return;
     this.http.get(`${environment.apiUrl}/patient/appointments/${appointmentId}/prescription`, { responseType: 'blob' })
       .subscribe(blob => {
         const url = window.URL.createObjectURL(blob);

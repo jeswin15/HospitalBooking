@@ -1,4 +1,5 @@
 using HospitalBooking.API.Hubs;
+using HospitalBooking.Application.DTOs;
 using HospitalBooking.Application.Interfaces;
 using HospitalBooking.Domain.Entities;
 using HospitalBooking.Domain.Enums;
@@ -253,30 +254,44 @@ namespace HospitalBooking.API.Controllers
         [HttpPost("appointment/{id}/prescription")]
         public async Task<IActionResult> IssuePrescription(int id, [FromBody] PrescriptionRequest request)
         {
-            var appointment = await _context.Appointments.FindAsync(id);
-            if (appointment == null) return NotFound();
-
-            var prescription = new Prescription
+            try
             {
-                AppointmentId = id,
-                PatientId = appointment.PatientId ?? 0,
-                DoctorId = appointment.DoctorId,
-                Diagnosis = request.Diagnosis,
-                MedicinesJson = System.Text.Json.JsonSerializer.Serialize(request.Medicines),
-                TestsAdvised = request.TestsAdvised,
-                FollowUpDate = request.FollowUpDate,
-                Notes = request.Notes,
-                CreatedAt = DateTime.UtcNow
-            };
+                var appointment = await _context.Appointments.FindAsync(id);
+                if (appointment == null) return NotFound(new { message = "Appointment not found" });
 
-            _context.Prescriptions.Add(prescription);
-            
-            // Mark appointment as completed
-            appointment.Status = AppointmentStatus.Completed;
-            
-            await _context.SaveChangesAsync();
+                if (appointment.Status == AppointmentStatus.Completed)
+                    return BadRequest(new { message = "Prescription already issued for this appointment" });
 
-            return Ok(new { message = "Prescription issued and appointment completed", prescriptionId = prescription.Id });
+                var prescription = new Prescription
+                {
+                    AppointmentId = id,
+                    PatientId = appointment.PatientId ?? 0,
+                    DoctorId = appointment.DoctorId,
+                    Diagnosis = request.Diagnosis,
+                    MedicinesJson = System.Text.Json.JsonSerializer.Serialize(request.Medicines),
+                    TestsAdvised = request.TestsAdvised,
+                    FollowUpDate = request.FollowUpDate,
+                    Notes = request.Notes,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                // Basic validation
+                if (prescription.PatientId == 0)
+                    return BadRequest(new { message = "Cannot issue prescription: Appointment is missing patient details" });
+
+                _context.Prescriptions.Add(prescription);
+                
+                // Mark appointment as completed
+                appointment.Status = AppointmentStatus.Completed;
+                
+                await _context.SaveChangesAsync();
+
+                return Ok(new { message = "Prescription issued and appointment completed", prescriptionId = prescription.Id });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while issuing prescription", details = ex.Message });
+            }
         }
 
         [HttpGet("appointment/{id}/prescription")]
@@ -338,13 +353,5 @@ namespace HospitalBooking.API.Controllers
         public string TestsAdvised { get; set; } = string.Empty;
         public DateTime? FollowUpDate { get; set; }
         public string Notes { get; set; } = string.Empty;
-    }
-
-    public class MedicineItem
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Dosage { get; set; } = string.Empty;
-        public string Duration { get; set; } = string.Empty;
-        public string Instructions { get; set; } = string.Empty;
     }
 }

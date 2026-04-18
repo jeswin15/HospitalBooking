@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 using HospitalBooking.API.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using HospitalBooking.Infrastructure.Services;
 
 namespace HospitalBooking.API.Controllers
 {
@@ -21,12 +22,14 @@ namespace HospitalBooking.API.Controllers
         private readonly AppDbContext _context;
         private readonly ISlotEngineService _slotEngine;
         private readonly IHubContext<QueueHub> _hubContext;
+        private readonly IPrescriptionPdfService _pdfService;
 
-        public PatientController(AppDbContext context, ISlotEngineService slotEngine, IHubContext<QueueHub> hubContext)
+        public PatientController(AppDbContext context, ISlotEngineService slotEngine, IHubContext<QueueHub> hubContext, IPrescriptionPdfService pdfService)
         {
             _context = context;
             _slotEngine = slotEngine;
             _hubContext = hubContext;
+            _pdfService = pdfService;
         }
 
         [HttpGet("doctors")]
@@ -171,6 +174,49 @@ namespace HospitalBooking.API.Controllers
                 });
             
             return Ok(new { message = "Appointment booked successfully", appointmentId = appointment.Id });
+        }
+
+        [HttpGet("appointments/{id}/prescription")]
+        [Authorize(Policy = "PatientOnly")]
+        public async Task<IActionResult> GetPrescriptionPdf(int id)
+        {
+            var patientId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var prescription = await _context.Prescriptions
+                .Include(p => p.Appointment)
+                    .ThenInclude(a => a.Doctor)
+                        .ThenInclude(d => d.Department)
+                .Include(p => p.Appointment)
+                    .ThenInclude(a => a.Patient)
+                .FirstOrDefaultAsync(p => p.AppointmentId == id && p.PatientId == patientId);
+            
+            if (prescription == null || prescription.Appointment == null) return NotFound();
+
+            var pdfBytes = _pdfService.GeneratePrescription(
+                prescription, 
+                prescription.Appointment.Doctor!, 
+                prescription.Appointment.Patient!);
+
+            return File(pdfBytes, "application/pdf", $"Prescription_{id}.pdf");
+        }
+
+        [HttpGet("appointments/{id}/prescription/data")]
+        [Authorize(Policy = "PatientOnly")]
+        public async Task<IActionResult> GetPrescriptionData(int id)
+        {
+            var patientId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var prescription = await _context.Prescriptions
+                .Where(p => p.AppointmentId == id && p.PatientId == patientId)
+                .Select(p => new {
+                    p.Diagnosis,
+                    p.TestsAdvised,
+                    p.FollowUpDate,
+                    p.Notes,
+                    Medicines = System.Text.Json.JsonSerializer.Deserialize<List<MedicineItem>>(p.MedicinesJson ?? "[]")
+                })
+                .FirstOrDefaultAsync();
+            
+            if (prescription == null) return NotFound();
+            return Ok(prescription);
         }
 
     }

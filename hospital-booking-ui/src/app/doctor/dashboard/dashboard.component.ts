@@ -522,7 +522,7 @@ export class DashboardComponent implements OnInit {
     diagnosis: '',
     medicines: [{ name: '', dosage: '', duration: '', instructions: '' }],
     testsAdvised: '',
-    followUpDate: '',
+    followUpDate: null as string | null,
     notes: ''
   };
 
@@ -554,9 +554,13 @@ export class DashboardComponent implements OnInit {
         this.closePrescriptionModal();
         this.loadData();
         this.submittingPresc = false;
-        this.prescForm = { diagnosis: '', medicines: [{ name: '', dosage: '', duration: '', instructions: '' }], testsAdvised: '', followUpDate: '', notes: '' };
+        this.prescForm = { diagnosis: '', medicines: [{ name: '', dosage: '', duration: '', instructions: '' }], testsAdvised: '', followUpDate: null, notes: '' };
       },
-      error: () => this.submittingPresc = false
+      error: (err) => {
+        this.submittingPresc = false;
+        console.error('Prescription error:', err);
+        alert('Failed to issue prescription: ' + (err.error?.message || err.message || 'Unknown error'));
+      }
     });
   }
 

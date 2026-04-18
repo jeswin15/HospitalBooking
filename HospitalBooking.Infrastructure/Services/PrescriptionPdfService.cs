@@ -1,4 +1,5 @@
 using HospitalBooking.Domain.Entities;
+using HospitalBooking.Application.DTOs;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -127,12 +128,5 @@ namespace HospitalBooking.Infrastructure.Services
             return document.GeneratePdf();
         }
 
-        private class MedicineItem
-        {
-            public string Name { get; set; } = string.Empty;
-            public string Dosage { get; set; } = string.Empty;
-            public string Duration { get; set; } = string.Empty;
-            public string Instructions { get; set; } = string.Empty;
-        }
     }
 }
