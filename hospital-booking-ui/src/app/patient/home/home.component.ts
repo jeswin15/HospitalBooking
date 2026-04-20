@@ -25,7 +25,7 @@ import { AuthService } from '../../core/services/auth.service';
           <p class="mt-4 text-teal-900/80 font-medium max-w-xl">Your health is our primary commitment. Monitor your upcoming consultations, view live specialists, and access your managed care records instantly.</p>
           
           <div class="flex gap-4 mt-10">
-            <button routerLink="/patient/book" class="px-8 py-4 bg-teal-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-teal-900/20 hover:scale-105 transition-all">
+            <button routerLink="/patient/doctors" class="px-8 py-4 bg-teal-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-teal-900/20 hover:scale-105 transition-all">
               Schedule New Visit
             </button>
             <button routerLink="/patient/appointments" class="px-8 py-4 bg-white/20 backdrop-blur-md text-teal-900 border border-teal-900/10 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/30 transition-all">

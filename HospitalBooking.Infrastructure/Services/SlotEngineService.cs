@@ -29,129 +29,164 @@ namespace HospitalBooking.Infrastructure.Services
             var doctor = await _context.Doctors.FindAsync(doctorId);
             if (doctor == null) return Enumerable.Empty<dynamic>();
 
-            var schedule = await _context.DoctorSchedules
-                .Where(s => s.DoctorId == doctorId && s.DayOfWeek == date.DayOfWeek && s.IsActive)
-                .FirstOrDefaultAsync();
+            var midnightDate = date.Date;
 
-            var existingAppointments = await _context.Appointments
-                .Where(a => a.DoctorId == doctorId && a.AppointmentDate == date.Date && a.Status != AppointmentStatus.Cancelled)
-                .ToDictionaryAsync(a => a.TokenNumber);
+            // 1. Fetch existing status data
+            var appointmentsList = await _context.Appointments
+                .Where(a => a.DoctorId == doctorId && a.AppointmentDate.Date == midnightDate && a.Status != AppointmentStatus.Cancelled)
+                .ToListAsync();
+            
+            var apptDict = appointmentsList
+                .GroupBy(a => a.TokenNumber)
+                .ToDictionary(g => g.Key, g => g.First());
 
-            var existingLocks = await _context.TokenLocks
-                .Where(t => t.DoctorId == doctorId && t.AppointmentDate == date.Date && !t.IsReleased && t.ExpiresAt > DateTime.UtcNow)
-                .ToDictionaryAsync(t => t.TokenNumber);
+            var locksList = await _context.TokenLocks
+                .Where(t => t.DoctorId == doctorId && t.AppointmentDate.Date == midnightDate && !t.IsReleased && t.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+
+            var locksDict = locksList
+                .GroupBy(t => t.TokenNumber)
+                .ToDictionary(g => g.Key, g => g.First());
 
             var tokens = new List<dynamic>();
 
-            // TOKEN MODE: Use Schedule if exists, otherwise fallback to doctor defaults
-            if (doctor.BookingMode == BookingMode.Token)
+            // 2. Fetch manual slots (if any)
+            var manualSlots = await _context.DoctorAvailabilitySlots
+                .Where(s => s.DoctorId == doctorId && s.Date.Date == midnightDate)
+                .OrderBy(s => s.TimeSlot)
+                .ToListAsync();
+
+            if (manualSlots.Any(s => s.TimeSlot != "TOKEN_SESSION"))
             {
-                // Check if doctor has a manual 'ON' entry for this date
-                // We use .Date to ensure timezone/time precision doesn't cause a mismatch
-                var isAvailableManually = await _context.DoctorAvailabilitySlots
-                    .AnyAsync(s => s.DoctorId == doctorId && s.Date.Date == date.Date && s.TimeSlot == "TOKEN_SESSION");
-                
-                if (!isAvailableManually) return tokens; // No manual ON for this date
-
-                // Fallback to Doctor defaults if no specific schedule found for this day
-                var totalTokens = schedule?.MaxTokensOnline ?? doctor.MaxTokensPerDay;
-                var startTime = schedule?.StartTime ?? new TimeSpan(9, 0, 0); // Default 9 AM
-                var slotDuration = (schedule?.SlotDurationMinutes ?? doctor.DefaultSlotDurationMinutes);
-                if (slotDuration <= 0) slotDuration = 15;
-
-                if (existingAppointments.Count >= totalTokens) return tokens;
-
-                for (int i = 1; i <= totalTokens; i++)
+                // Unified Logic Part A: Manual Slots Override
+                for (int i = 0; i < manualSlots.Count; i++)
                 {
-                    var status = getStatus(i, existingAppointments, existingLocks);
-                    var slotTime = startTime.Add(TimeSpan.FromMinutes((i - 1) * slotDuration));
+                    var s = manualSlots[i];
+                    if (s.TimeSlot == "TOKEN_SESSION") continue;
 
-                    tokens.Add(new
-                    {
-                        id = i,
-                        tokenNumber = i,
-                        status = status,
-                        isLocked = status == "Locked",
-                        slotTime = slotTime.ToString(@"hh\:mm")
-                    });
-                }
-            }
-            // SLOT MODE: Use DoctorAvailabilitySlots (saved in grid) as master
-            {
-                var savedSlots = await _context.DoctorAvailabilitySlots
-                    .Where(s => s.DoctorId == doctorId && s.Date.Date == date.Date)
-                    .OrderBy(s => s.TimeSlot)
-                    .ToListAsync();
-
-                for (int i = 0; i < savedSlots.Count; i++)
-                {
-                    var s = savedSlots[i];
                     var tokenNum = i + 1;
                     var status = s.IsBooked ? "Booked" : "Available";
 
-                    if (status == "Available" && existingLocks.ContainsKey(tokenNum)) status = "Locked";
-                    if (status == "Available" && existingAppointments.ContainsKey(tokenNum)) status = "Booked";
+                    if (status == "Available" && locksDict.ContainsKey(tokenNum)) status = "Locked";
+                    if (status == "Available" && apptDict.ContainsKey(tokenNum)) status = "Booked";
 
                     tokens.Add(new
                     {
                         id = s.Id,
                         tokenNumber = tokenNum,
                         status = status,
-                        isLocked = status == "Locked",
+                        isLocked = status == "Locked" || status == "Booked",
                         slotTime = s.TimeSlot
                     });
+                }
+            }
+            else if (doctor.BookingMode == BookingMode.Token)
+            {
+                // Unified Logic Part B: Fallback to Automated Tokens (Schedule-based)
+                // Only proceed if TOKEN_SESSION is marked 'ON' or if it's the doctor's default
+                var isAvailableManually = manualSlots.Any(s => s.TimeSlot == "TOKEN_SESSION");
+                
+                if (isAvailableManually)
+                {
+                    var schedule = await _context.DoctorSchedules
+                        .Where(s => s.DoctorId == doctorId && s.DayOfWeek == date.DayOfWeek && s.IsActive)
+                        .FirstOrDefaultAsync();
+
+                    var totalTokens = schedule?.MaxTokensOnline ?? doctor.MaxTokensPerDay;
+                    var startTime = schedule?.StartTime ?? new TimeSpan(9, 0, 0);
+                    var slotDuration = schedule?.SlotDurationMinutes ?? doctor.DefaultSlotDurationMinutes;
+                    if (slotDuration <= 0) slotDuration = 15;
+
+                    for (int i = 1; i <= totalTokens; i++)
+                    {
+                        var status = "Available";
+                        if (apptDict.ContainsKey(i)) status = "Booked";
+                        else if (locksDict.ContainsKey(i)) status = "Locked";
+
+                        var slotTime = startTime.Add(TimeSpan.FromMinutes((i - 1) * slotDuration));
+
+                        tokens.Add(new
+                        {
+                            id = i,
+                            tokenNumber = i,
+                            status = status,
+                            isLocked = status == "Locked" || status == "Booked",
+                            slotTime = slotTime.ToString(@"hh\:mm")
+                        });
+                    }
                 }
             }
 
             return tokens;
         }
 
-        private string getStatus(int tokenNumber, Dictionary<int, Appointment> appts, Dictionary<int, TokenLock> locks)
+        public async Task<(bool Success, string Message, List<int> ReleasedTokens)> HoldTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId)
         {
-            if (appts.ContainsKey(tokenNumber)) return "Booked";
-            if (locks.ContainsKey(tokenNumber)) return "Locked";
-            return "Available";
-        }
-
-        public async Task<bool> HoldTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId)
-        {
-            // First, release any existing locks for THIS patient for THIS doctor/date to avoid orphans
             var previousLocks = await _context.TokenLocks
                 .Where(t => t.PatientId == patientId && t.DoctorId == doctorId && !t.IsReleased)
                 .ToListAsync();
             
-            foreach(var pl in previousLocks) pl.IsReleased = true;
+            var releasedTokens = previousLocks.Select(l => l.TokenNumber).ToList();
 
-            var result = await CheckAndLockAsync(doctorId, date, tokenNumber, patientId);
-            return result;
+            foreach(var pl in previousLocks) pl.IsReleased = true;
+            await _context.SaveChangesAsync();
+
+            var (success, error) = await CheckAndLockAsync(doctorId, date, tokenNumber, patientId);
+            return (success, error, releasedTokens);
         }
 
-        private async Task<bool> CheckAndLockAsync(int doctorId, DateTime date, int tokenNumber, int patientId)
+        private async Task<(bool Success, string Error)> CheckAndLockAsync(int doctorId, DateTime date, int tokenNumber, int patientId)
         {
-            var isTaken = await _context.TokenLocks
-                .AnyAsync(t => t.DoctorId == doctorId && t.AppointmentDate.Date == date.Date && t.TokenNumber == tokenNumber && !t.IsReleased && t.ExpiresAt > DateTime.UtcNow);
-            
-            if (isTaken) return false;
+            var midnightDate = date.Date;
 
-            var isBooked = await _context.Appointments
-                .AnyAsync(a => a.DoctorId == doctorId && a.AppointmentDate.Date == date.Date && a.TokenNumber == tokenNumber && a.Status != AppointmentStatus.Cancelled);
-
-            if (isBooked) return false;
-
-            var @lock = new TokenLock
+            // Use a transaction to ensure atomicity and prevent double-locking
+            using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            try 
             {
-                DoctorId = doctorId,
-                PatientId = patientId,
-                AppointmentDate = date.Date,
-                TokenNumber = tokenNumber,
-                LockedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(8),
-                IsReleased = false
-            };
+                var activeLock = await _context.TokenLocks
+                    .FirstOrDefaultAsync(t => t.DoctorId == doctorId && t.AppointmentDate.Date == midnightDate && t.TokenNumber == tokenNumber && !t.IsReleased && t.ExpiresAt > DateTime.UtcNow);
+                
+                if (activeLock != null) 
+                {
+                    if (activeLock.PatientId == patientId) 
+                    {
+                        await transaction.RollbackAsync();
+                        return (true, "Already held by you");
+                    }
+                    await transaction.RollbackAsync();
+                    return (false, "This slot is currently held by another user.");
+                }
 
-            _context.TokenLocks.Add(@lock);
-            await _context.SaveChangesAsync();
-            return true;
+                var isBooked = await _context.Appointments
+                    .AnyAsync(a => a.DoctorId == doctorId && a.AppointmentDate.Date == midnightDate && a.TokenNumber == tokenNumber && a.Status != AppointmentStatus.Cancelled);
+
+                if (isBooked) 
+                {
+                    await transaction.RollbackAsync();
+                    return (false, "This slot is already booked.");
+                }
+
+                var @lock = new TokenLock
+                {
+                    DoctorId = doctorId,
+                    PatientId = patientId,
+                    AppointmentDate = midnightDate,
+                    TokenNumber = tokenNumber,
+                    LockedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(8),
+                    IsReleased = false
+                };
+
+                _context.TokenLocks.Add(@lock);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return (true, "Success");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return (false, $"Internal Error: {ex.Message}");
+            }
         }
 
         public async Task<Appointment> BookTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId, string? reason = null, AppointmentStatus? status = null)

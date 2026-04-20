@@ -13,7 +13,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: 'home', loadComponent: () => import('./patient/home/home.component').then(m => m.HomeComponent) },
-      { path: 'book', loadComponent: () => import('./patient/book/book.component').then(m => m.BookComponent) },
+      { path: 'book', redirectTo: 'doctors' },
       { path: 'doctors', loadComponent: () => import('./patient/all-doctors/all-doctors.component').then(m => m.AllDoctorsComponent) },
       { path: 'slots', loadComponent: () => import('./patient/slots/slots.component').then(m => m.SlotsComponent) },
       { path: 'appointments', loadComponent: () => import('./patient/history/history.component').then(m => m.HistoryComponent) }

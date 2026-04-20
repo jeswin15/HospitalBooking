@@ -18,7 +18,7 @@ namespace HospitalBooking.Application.Interfaces
     {
         Task GenerateSlotsForDateAsync(int doctorId, DateTime date);
         Task<IEnumerable<dynamic>> GetAvailableTokensAsync(int doctorId, DateTime date);
-        Task<bool> HoldTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId);
+        Task<(bool Success, string Message, List<int> ReleasedTokens)> HoldTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId);
         Task<Appointment> BookTokenAsync(int doctorId, DateTime date, int tokenNumber, int patientId, string? reason = null, AppointmentStatus? status = null);
     }
 

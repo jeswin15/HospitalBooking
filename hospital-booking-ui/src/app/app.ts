@@ -36,7 +36,6 @@ export class App implements OnInit {
     if (url.includes('/patient/home')) return 'Personal Overview';
     if (url.includes('/patient/doctors')) return 'Discover Specialist';
     if (url.includes('/patient/appointments')) return 'Appointment History';
-    if (url.includes('/patient/book')) return 'New Appointment Booking';
     if (url.includes('/patient/slots')) return 'Selection & Scheduling';
     
     if (url.includes('/doctor/dashboard')) return 'Live Operation Hub';

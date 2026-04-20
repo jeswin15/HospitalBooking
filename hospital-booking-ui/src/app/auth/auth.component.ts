@@ -130,6 +130,9 @@ export class AuthComponent implements OnInit {
   };
 
   ngOnInit() {
+    // Reset form data to ensure clean slate
+    this.formData = { name: '', email: '', password: '', role: 'patient' };
+    
     if (this.authService.isLoggedIn()) {
       this.redirectUser();
     }
@@ -147,6 +150,18 @@ export class AuthComponent implements OnInit {
     this.loading.set(true);
 
     if (this.isLogin()) {
+      // Login Validation
+      if (!this.formData.email || !this.formData.email.includes('@')) {
+        this.errorMsg.set('Please enter a valid email address.');
+        this.loading.set(false);
+        return;
+      }
+      if (!this.formData.password) {
+        this.errorMsg.set('Please enter your password.');
+        this.loading.set(false);
+        return;
+      }
+
       const role = this.formData.role.toLowerCase() as 'admin' | 'doctor' | 'patient';
       this.authService.login({ email: this.formData.email, password: this.formData.password }, role).subscribe({
         next: (res) => {

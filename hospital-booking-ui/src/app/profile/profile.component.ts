@@ -210,7 +210,7 @@ export class ProfileComponent implements OnInit {
         const current = this.authService.currentUser();
         if (current) {
           const updated: User = { ...current, profilePhotoUrl: res.imageUrl };
-          localStorage.setItem('user', JSON.stringify(updated));
+          sessionStorage.setItem('user', JSON.stringify(updated));
           this.authService.currentUser.set(updated);
         }
         this.uploading.set(false);
@@ -236,7 +236,7 @@ export class ProfileComponent implements OnInit {
         const current = this.authService.currentUser();
         if (current) {
           const updated: User = { ...current, name: this.form.name, email: this.form.email };
-          localStorage.setItem('user', JSON.stringify(updated));
+          sessionStorage.setItem('user', JSON.stringify(updated));
           this.authService.currentUser.set(updated);
         }
         

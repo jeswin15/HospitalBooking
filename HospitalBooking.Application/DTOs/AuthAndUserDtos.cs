@@ -1,11 +1,16 @@
 using HospitalBooking.Domain.Enums;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace HospitalBooking.Application.DTOs
 {
     public class LoginRequestDto
     {
+        [Required]
+        [EmailAddress]
         public string Email { get; set; } = string.Empty;
+        
+        [Required]
         public string Password { get; set; } = string.Empty;
     }
 
@@ -39,10 +44,21 @@ namespace HospitalBooking.Application.DTOs
 
     public class PatientRegisterDto
     {
+        [Required]
         public string Name { get; set; } = string.Empty;
+        
+        [Required]
+        [EmailAddress]
         public string Email { get; set; } = string.Empty;
+        
+        [Required]
         public string Phone { get; set; } = string.Empty;
+        
+        [Required]
         public string Gender { get; set; } = string.Empty;
+        
+        [Required]
+        [MinLength(6, ErrorMessage = "Password must be at least 6 characters long.")]
         public string Password { get; set; } = string.Empty;
     }
 

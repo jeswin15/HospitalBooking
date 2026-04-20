@@ -1,4 +1,4 @@
-import { Component, signal, OnInit, inject } from '@angular/core';
+import { Component, signal, OnInit, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { TokenGridComponent } from '../../shared/components/token-grid.component';
 import { DoctorCardComponent } from '../../shared/components/doctor-card.component';
 import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader.component';
+import { SignalrService } from '../../core/services/signalr.service';
 
 @Component({
   selector: 'app-book',
@@ -72,10 +73,10 @@ import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader
                 <div class="flex items-center justify-between">
                   <div>
                     <h3 class="text-xl font-black text-slate-800">
-                      {{ selectedDoctor()?.bookingMode === 0 ? 'Pick a Preferred Time' : 'Automated Token Assignment' }}
+                      {{ (selectedDoctor()?.bookingMode == 0 || selectedDoctor()?.bookingMode == 'Slot') ? 'Pick a Preferred Time' : 'Automated Token Assignment' }}
                     </h3>
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                      {{ selectedDoctor()?.bookingMode === 0 ? 'Choose from available time slots' : 'Tokens are assigned sequentially' }}
+                      {{ (selectedDoctor()?.bookingMode == 0 || selectedDoctor()?.bookingMode == 'Slot') ? 'Choose from available time slots' : 'Tokens are assigned sequentially' }}
                     </p>
                   </div>
                   <div class="flex gap-4">
@@ -83,7 +84,7 @@ import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader
                   </div>
                 </div>
 
-                @if (selectedDoctor()?.bookingMode === 1) {
+                @if (selectedDoctor()?.bookingMode == 1 || selectedDoctor()?.bookingMode == 'Token') {
                   <!-- TOKEN MODE UI -->
                   <div class="space-y-6">
                     @if (firstAvailableToken()) {
@@ -130,7 +131,7 @@ import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader
                       </div>
                       <div class="flex justify-between items-end border-b border-slate-100 pb-6">
                         <span class="text-slate-400 font-bold text-xs">Token / Slot</span>
-                        <span class="font-black text-2xl text-blue-600">{{ selectedToken() ? (selectedDoctor()?.bookingMode === 0 ? selectedToken()?.slotTime : '#' + selectedToken()?.tokenNumber) : '--' }}</span>
+                        <span class="font-black text-2xl text-blue-600">{{ selectedToken() ? ((selectedDoctor()?.bookingMode == 0 || selectedDoctor()?.bookingMode == 'Slot') ? selectedToken()?.slotTime : '#' + selectedToken()?.tokenNumber) : '--' }}</span>
                       </div>
                       <div class="flex justify-between items-end">
                         <span class="text-slate-400 font-bold text-xs">Consultation Type</span>
@@ -168,8 +169,9 @@ import { SkeletonLoaderComponent } from '../../shared/components/skeleton-loader
     }
   `]
 })
-export class BookComponent implements OnInit {
+export class BookComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
+  private signalr = inject(SignalrService);
   
   step = signal(1);
   departments = signal<any[]>([]);
@@ -191,6 +193,10 @@ export class BookComponent implements OnInit {
     this.loadInitialData();
   }
 
+  ngOnDestroy() {
+    this.signalr.stopConnection();
+  }
+
   loadInitialData() {
     this.http.get<any[]>(`${environment.apiUrl}/patient/departments`).subscribe(res => this.departments.set(res));
     this.http.get<any[]>(`${environment.apiUrl}/patient/doctors`).subscribe(res => this.doctors.set(res));
@@ -207,6 +213,22 @@ export class BookComponent implements OnInit {
     this.selectedDoctor.set(doc);
     this.loadSlots();
     this.step.set(3);
+    
+    // Start SignalR for real-time slot updates
+    this.signalr.stopConnection(); // Reset any existing
+    this.signalr.startConnection(doc.id, this.bookingDate);
+    this.signalr.onSlotStateChanged((data: any) => {
+      this.updateLocalSlotStatus(data.tokenNumber, data.status);
+    });
+  }
+
+  private updateLocalSlotStatus(tokenNumber: number, status: string) {
+    const currentTokens = [...this.tokens()];
+    const index = currentTokens.findIndex(t => t.tokenNumber === tokenNumber);
+    if (index !== -1) {
+      currentTokens[index] = { ...currentTokens[index], status: status, isLocked: status === 'Locked' };
+      this.tokens.set(currentTokens);
+    }
   }
 
   loadSlots() {
@@ -227,7 +249,7 @@ export class BookComponent implements OnInit {
         }));
         this.tokens.set(mappedSlots);
 
-        if (this.selectedDoctor()?.bookingMode === 1) { // TOKEN MODE
+        if (this.selectedDoctor()?.bookingMode == 1 || this.selectedDoctor()?.bookingMode == 'Token') { // TOKEN MODE
           const firstAvailable = mappedSlots.find(s => s.status === 'Available');
           if (firstAvailable) {
             this.firstAvailableToken.set(firstAvailable);
@@ -263,7 +285,7 @@ export class BookComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.selectedToken.set(token);
-        if (this.selectedDoctor()?.bookingMode === 0) {
+        if (this.selectedDoctor()?.bookingMode == 0 || this.selectedDoctor()?.bookingMode == 'Slot') {
            // Scroll to bottom or show feedback for Slot mode
         }
       },

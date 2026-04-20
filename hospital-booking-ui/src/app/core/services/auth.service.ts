@@ -26,7 +26,7 @@ export class AuthService {
   // State management using Signals
   currentUser = signal<User | null>(this.getUserFromStorage());
   isAuthenticated = signal<boolean>(!!this.getUserFromStorage());
-  isImpersonating = signal<boolean>(!!localStorage.getItem('admin_session_backup'));
+  isImpersonating = signal<boolean>(!!sessionStorage.getItem('admin_session_backup'));
 
   constructor(private http: HttpClient, private router: Router) {}
 
@@ -49,8 +49,8 @@ export class AuthService {
           profilePhotoUrl: userObj.profilePhotoUrl || userObj.ProfilePhotoUrl || ''
         };
 
-        localStorage.setItem('auth_token', token);
-        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        sessionStorage.setItem('auth_token', token);
+        sessionStorage.setItem('user', JSON.stringify(normalizedUser));
         this.currentUser.set(normalizedUser);
         this.isAuthenticated.set(true);
       })
@@ -66,9 +66,9 @@ export class AuthService {
   }
 
   logout() {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('admin_session_backup');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('admin_session_backup');
     this.currentUser.set(null);
     this.isAuthenticated.set(false);
     this.isImpersonating.set(false);
@@ -78,15 +78,15 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${environment.apiUrl}/admin/impersonate/${patientId}`, {}).pipe(
       tap(res => {
         // Backup Admin Session
-        const adminToken = localStorage.getItem('auth_token');
-        const adminUser = localStorage.getItem('user');
+        const adminToken = sessionStorage.getItem('auth_token');
+        const adminUser = sessionStorage.getItem('user');
         if (adminToken && adminUser) {
-          localStorage.setItem('admin_session_backup', JSON.stringify({ token: adminToken, user: adminUser }));
+          sessionStorage.setItem('admin_session_backup', JSON.stringify({ token: adminToken, user: adminUser }));
         }
 
         // Apply Patient Session
-        localStorage.setItem('auth_token', res.token);
-        localStorage.setItem('user', JSON.stringify(res.user));
+        sessionStorage.setItem('auth_token', res.token);
+        sessionStorage.setItem('user', JSON.stringify(res.user));
         
         this.currentUser.set(res.user);
         this.isAuthenticated.set(true);
@@ -96,12 +96,12 @@ export class AuthService {
   }
 
   stopImpersonation() {
-    const backup = localStorage.getItem('admin_session_backup');
+    const backup = sessionStorage.getItem('admin_session_backup');
     if (backup) {
       const { token, user } = JSON.parse(backup);
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('user', user);
-      localStorage.removeItem('admin_session_backup');
+      sessionStorage.setItem('auth_token', token);
+      sessionStorage.setItem('user', user);
+      sessionStorage.removeItem('admin_session_backup');
       
       this.currentUser.set(JSON.parse(user));
       this.isImpersonating.set(false);
@@ -110,7 +110,7 @@ export class AuthService {
   }
 
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return sessionStorage.getItem('auth_token');
   }
 
   isAdmin(): boolean {
@@ -129,7 +129,7 @@ export class AuthService {
   }
 
   private getUserFromStorage(): User | null {
-    const data = localStorage.getItem('user');
+    const data = sessionStorage.getItem('user');
     if (!data) return null;
     try {
       const user = JSON.parse(data);

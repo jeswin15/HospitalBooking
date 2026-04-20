@@ -96,12 +96,20 @@ namespace HospitalBooking.API.Controllers
                 return Unauthorized(new { message = "Patient session not found." });
             }
 
-            var result = await _slotEngine.HoldTokenAsync(request.DoctorId, request.Date, request.TokenNumber, patientId);
-            if (!result) return BadRequest(new { message = "Slot just taken or unavailable" });
+            var (success, message, releasedTokens) = await _slotEngine.HoldTokenAsync(request.DoctorId, request.Date, request.TokenNumber, patientId);
+            if (!success) return BadRequest(new { message = message });
 
-            // Broadcast lock to all patients viewing this doctor/date
-            await _hubContext.Clients.Group($"doctor_{request.DoctorId}_{request.Date:yyyy-MM-dd}")
-                .SendAsync("SlotStateChanged", new { tokenNumber = request.TokenNumber, status = "Locked" });
+            var dateStr = request.Date.ToString("yyyy-MM-dd");
+            var hubGroup = _hubContext.Clients.Group($"doctor_{request.DoctorId}_{dateStr}");
+
+            // Broadcast released slots as Available
+            foreach (var tokenNum in releasedTokens)
+            {
+                await hubGroup.SendAsync("SlotStateChanged", new { tokenNumber = tokenNum, status = "Available" });
+            }
+
+            // Broadcast new lock
+            await hubGroup.SendAsync("SlotStateChanged", new { tokenNumber = request.TokenNumber, status = "Locked" });
 
             return Ok(new { message = "Slot held for 8 minutes" });
         }

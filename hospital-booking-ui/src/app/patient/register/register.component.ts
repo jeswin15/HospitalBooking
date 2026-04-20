@@ -110,8 +110,36 @@ export class RegisterComponent {
   errorMessage = '';
 
   onRegister() {
-    this.loading = true;
     this.errorMessage = '';
+    
+    // Strict Validation
+    if (!this.user.name || this.user.name.trim().length < 2) {
+      this.errorMessage = 'Please enter your full legal name.';
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!this.user.email || !emailRegex.test(this.user.email)) {
+      this.errorMessage = 'Please enter a valid email address.';
+      return;
+    }
+
+    if (!this.user.phone || this.user.phone.length < 10) {
+      this.errorMessage = 'Please enter a valid 10-digit mobile number.';
+      return;
+    }
+
+    if (!this.user.gender) {
+      this.errorMessage = 'Please select your gender.';
+      return;
+    }
+
+    if (!this.user.password || this.user.password.length < 6) {
+      this.errorMessage = 'Security code must be at least 6 characters long.';
+      return;
+    }
+
+    this.loading = true;
     
     this.authService.register(this.user).subscribe({
       next: () => {
